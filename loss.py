@@ -1,0 +1,264 @@
+import numpy as np
+import torch
+from torch import nn
+from matplotlib import pyplot as plt
+from plots import VisualizeMatching
+
+
+class GaussianMixAutoEncoderLoss(nn.Module):
+    def __init__(self, gamma: float = 1, eta: float = 1, theta: float = 10):
+        """
+        Initialize the GaussianLoss class.
+
+        Args:
+            gamma (float): Weight for the Gaussian component matching loss.
+            eta (float): Weight for the variance regularization term.
+        """
+        super(GaussianMixAutoEncoderLoss, self).__init__()
+        self.gamma = 0.0
+        self.eta = 10.0
+        self.theta = 0.0
+        return  
+    
+    def forward(self, X: list, model, gaussianMixLatentSpace, warmup=False):
+        """
+        Compute a loss function using input tensors, embeddings, reconstructions, and transformed Gaussian samples.
+
+        Args:
+            X (list): A list containing tensors, each representing a batch of DD dimension data points.
+            Z (list): A list containing tensors, each representing embeddings of points in X, possibly of a different dimension.
+            XR (list): A list containing tensors, each representing the reconstruction of X from Z, with the same dimension as X.
+            gaussians_all (list): A list of all transformed Gaussian samples as tensors.
+            gaussians_decoded_all (list): A list of all gaussian samples decoded.
+
+        Returns:
+            torch.Tensor: A scalar loss value.
+        """
+        StandardAutoencoderLoss = []
+        GaussianLatentLoss = []
+        GaussianDecodedLoss = []
+        GuassianResponsibilityLoss = []
+        MinDistanceLoss = []
+        CovarianceLoss = []
+        Images = []
+        for sample_index, x in enumerate(X):
+            z, z_decoded = model(x)
+            StandardAutoencoderLoss.append(torch.nn.functional.mse_loss(x, z_decoded, reduction='sum')) 
+            #cov = torch.cov(z.transpose(0, 1))
+            if not warmup:
+                Gaussianpoints = gaussianMixLatentSpace(sample_index)
+                #Gaussianpoints_decoded = [model.decoder(gaussianpoint) for gaussianpoint in Gaussianpoints]
+                Gaussianpoints_Responsibilities,_, pairwise_distances = gaussianMixLatentSpace.compute_responsibilities(z, Gaussianpoints, equal_proportion=True)
+                # Compute the reconstruction loss
+                
+                num_components = len(Gaussianpoints_Responsibilities)
+                gaussianpoints_per_component = Gaussianpoints[0].shape[0]
+                scaling_factor = num_components*gaussianpoints_per_component
+                #Gaussianpoints_Responsibilities_copy = [resp.clone().detach() for resp in Gaussianpoints_Responsibilities]
+                #matched_gaussianpoints, matched_gaussianpoints_decoded, _, _ \
+                #    = self.matchGaussianPoints(z, Gaussianpoints, Gaussianpoints_decoded,
+                #        Gaussianpoints_Responsibilities_copy)    
+                #gaussianCov = torch.cov(matched_gaussianpoints.transpose(0, 1))
+                # if epoch % 20 == 0 and update == 0:
+                #     with torch.no_grad():
+                #         Images.append(VisualizeMatching(z, matched_gaussianpoints))
+                #CovarianceLoss.append(torch.nn.functional.mse_loss(cov, gaussianCov, reduction='sum'))
+                #GaussianLatentLoss.append(torch.nn.functional.mse_loss(z, matched_gaussianpoints, reduction='sum'))
+                #GaussianDecodedLoss.append(torch.nn.functional.mse_loss(z_decoded, matched_gaussianpoints_decoded, reduction='sum'))
+                Gaussianpoints_weight = [responsibility.mean(dim=0) for responsibility in Gaussianpoints_Responsibilities]
+                #Components_weight = [gpoints_weight.sum() for gpoints_weight in Gaussianpoints_weight]
+                #gPoint_weight_loss = torch.hstack([g_weight.var() for g_weight in Gaussianpoints_weight]).sum()
+                gPoint_weight_loss = ((torch.hstack(Gaussianpoints_weight)-0.01)**2).sum()
+                #component_weight_loss = torch.hstack([(c_weight-1/num_components)**2 for c_weight in Components_weight]).sum() 
+                #GuassianResponsibilityLoss.append(self.eta*scaling_factor*gPoint_weight_loss + self.eta*0.0*component_weight_loss)
+                GuassianResponsibilityLoss.append(self.eta*scaling_factor*gPoint_weight_loss)
+                #GuassianResponsibilityLoss.append(scaling_factor*torch.hstack(Gaussianpoints_weight).var())
+                # GuassianResponsibilityLoss[-1] += num_components*torch.hstack(
+                #     [(g_weight.sum()-1/num_components)**2 for g_weight in Gaussianpoints_weight]).sum()
+                # min_distances = torch.min(torch.hstack(pairwise_distances), dim=1)[0]
+                # min_distances_loss = torch.sum(torch.relu(min_distances-10*gaussianMixLatentSpace.sigma))
+                # MinDistanceLoss.append(self.gamma*min_distances_loss)
+            else:
+                GuassianResponsibilityLoss.append(torch.zeros(1))
+
+
+        standardAutoencoderLoss = torch.stack(StandardAutoencoderLoss).sum()
+        #gaussianLatentLoss = torch.stack(GaussianLatentLoss).sum()
+        #gaussianDecodedLoss = torch.stack(GaussianDecodedLoss).sum()
+        gaussianResponsibilityLoss = torch.stack(GuassianResponsibilityLoss).sum()
+        #covarianceLoss = torch.stack(CovarianceLoss).sum()
+        # MinDistanceLoss = torch.stack(MinDistanceLoss).sum()
+
+        #standardAutoencoderLoss = 1.0 * standardAutoencoderLoss
+        #gaussianLatentLoss = self.gamma * gaussianLatentLoss
+        #gaussianDecodedLoss = 0.0 * gaussianDecodedLoss
+        gaussianResponsibilityLoss = self.eta * gaussianResponsibilityLoss
+        #covarianceLoss = self.theta * covarianceLoss
+        #loss = standardAutoencoderLoss + gaussianLatentLoss + gaussianDecodedLoss \
+        #    + gaussianResponsibilityLoss + covarianceLoss
+        # loss = standardAutoencoderLoss + gaussianResponsibilityLoss + MinDistanceLoss
+        loss = standardAutoencoderLoss + gaussianResponsibilityLoss
+        # metrics = {'Total Loss': loss.item(), 'StandardAutoencoderLoss': standardAutoencoderLoss.item(), 
+        # 'GaussianLatentLoss': gaussianLatentLoss.item(),'GaussianDecodedLoss': gaussianDecodedLoss.item(), 
+        # 'GaussianResponsibilityLoss': gaussianResponsibilityLoss.item(), 'CovarianceLoss': covarianceLoss.item()}
+        metrics = {'Total Loss': loss.item(), 'StandardAutoencoderLoss': standardAutoencoderLoss.item(), 
+        'GaussianResponsibilityLoss': gaussianResponsibilityLoss.item()}
+        #metrics = {'Total Loss': loss.item(), 'StandardAutoencoderLoss': standardAutoencoderLoss.item()}
+        return loss, metrics, Images
+    
+    
+    # def forward(self, X: list, Z: list, Z_decoded: list, sample2Component: list, 
+    #             Gaussians_all: list, Gaussians_decoded_all:list):
+    #     """
+    #     Compute a loss function using input tensors, embeddings, reconstructions, and transformed Gaussian samples.
+
+    #     Args:
+    #         X (list): A list containing tensors, each representing a batch of DD dimension data points.
+    #         Z (list): A list containing tensors, each representing embeddings of points in X, possibly of a different dimension.
+    #         XR (list): A list containing tensors, each representing the reconstruction of X from Z, with the same dimension as X.
+    #         gaussians_all (list): A list of all transformed Gaussian samples as tensors.
+    #         gaussians_decoded_all (list): A list of all gaussian samples decoded.
+
+    #     Returns:
+    #         torch.Tensor: A scalar loss value.
+    #     """
+    #     StandardAutoencoderLoss = []
+    #     GaussianLatentLoss = []
+    #     GaussianDecodedLoss = []
+    #     GuassianResponsibilityLoss = []
+    #     for x, z, z_decoded, s2c in zip(X, Z, Z_decoded, sample2Component):
+    #         # Compute the reconstruction loss
+    #         StandardAutoencoderLoss.append(torch.nn.functional.mse_loss(x, z_decoded, reduction='sum'))
+    #         gaussians = [Gaussians_all[component] for component in s2c]
+    #         gaussians_decoded = [Gaussians_decoded_all[component] for component in s2c] 
+    #         num_components = len(gaussians)
+    #         gaussianpoints_per_component = gaussians[0].shape[0]
+    #         scaling_factor = num_components*gaussianpoints_per_component
+    #         Gaussianpoints_Responsibilities = self.compute_responsibilities(z, gaussians)
+    #         matched_gaussianpoints, matched_gaussianpoints_decoded, _, _ \
+    #             = self.matchGaussianPoints(z, gaussians, gaussians_decoded, Gaussianpoints_Responsibilities)
+    #         GaussianLatentLoss.append(self.gamma*torch.nn.functional.mse_loss(z, matched_gaussianpoints, reduction='sum'))
+    #         GaussianDecodedLoss.append(self.gamma*torch.nn.functional.mse_loss(z_decoded, matched_gaussianpoints_decoded, reduction='sum'))
+    #         GuassianResponsibilityLoss.append(self.eta*scaling_factor*torch.stack([responsibility.sum(dim=0).var() 
+    #                                                                                for responsibility in Gaussianpoints_Responsibilities]).sum())
+    #     standardAutoencoderLoss = torch.stack(StandardAutoencoderLoss).sum()
+    #     gaussianLatentLoss = torch.stack(GaussianLatentLoss).sum()
+    #     gaussianDecodedLoss = torch.stack(GaussianDecodedLoss).sum()
+    #     gaussianResponsibilityLoss = torch.stack(GuassianResponsibilityLoss).sum()
+    #     loss = standardAutoencoderLoss + gaussianLatentLoss + gaussianDecodedLoss + gaussianResponsibilityLoss
+
+    #     return loss, standardAutoencoderLoss, gaussianLatentLoss, gaussianDecodedLoss, gaussianResponsibilityLoss
+    
+    
+
+    def matchGaussianPoints(self, z: torch.Tensor, Gaussians: list, Gaussians_decoded: list, Gaussianpoints_Responsibilities):
+        """
+        Select the Gaussian component and the point within that component proportional to the responsibilities.
+
+        Args:
+            z (torch.Tensor): A tensor representing embeddings of input points.
+            gaussians (list): A list of transformed Gaussian samples as tensors.
+            responsibilities (list): A list of tensors containing the responsibilities giving probability
+            that a point in z is generated from the gaussian point.
+
+        Returns:
+            torch.Tensor: A tensor of matched Gaussian points corresponding to points in z.
+            numpy vector: A numpy vector of matched component indices.
+            numpy vector: A numpy vector of matched gaussian point indices.
+        """
+        Gaussianpoints_Responsibilities = [responsibility + torch.tensor(10**-6) for responsibility in Gaussianpoints_Responsibilities]
+        Temp = [responsibility.sum(dim=1, keepdim=True) for responsibility in Gaussianpoints_Responsibilities]
+        denominator = torch.hstack(Temp).sum(dim=1, keepdim=True)
+        Gaussianpoints_Responsibilities = [responsibility/denominator for responsibility in Gaussianpoints_Responsibilities]
+        matched_component_index = np.zeros(z.shape[0], dtype=int)
+        matched_gaussianpoint_index = np.zeros(z.shape[0], dtype=int)
+        matched_gaussianpoints = torch.zeros_like(z)
+        matched_gaussianpoints_decoded = torch.zeros((z.shape[0], Gaussians_decoded[0].shape[1]))
+        for i in range(Gaussianpoints_Responsibilities[0].shape[0]):
+            component_responsibility = [responsibility[i, :].sum() for responsibility in Gaussianpoints_Responsibilities]
+            component = torch.multinomial(torch.tensor(component_responsibility), num_samples=1).item()
+            gaussianpoint_responsibilities = Gaussianpoints_Responsibilities[component][i, :]
+            gaussianpoint_index = torch.multinomial(gaussianpoint_responsibilities, num_samples=1).item()
+            matched_component_index[i] = component
+            matched_gaussianpoint_index[i] = gaussianpoint_index
+            matched_gaussianpoints[i] = Gaussians[component][gaussianpoint_index]
+            matched_gaussianpoints_decoded[i] = Gaussians_decoded[component][gaussianpoint_index]
+            Gaussianpoints_Responsibilities[component][:, gaussianpoint_index] = 0
+        return matched_gaussianpoints, matched_gaussianpoints_decoded, matched_component_index, matched_gaussianpoint_index
+    
+    def validation_loss(self, X, model, gaussianMixLatentSpace):
+        """
+        Compute the validation loss.
+        Args:
+            X (list): A list containing tensors, each representing a batch of DD dimension data points.
+            Z (list): A list containing tensors, each representing embeddings of points in X, possibly of a different dimension.
+            XR (list): A list containing tensors, each representing the reconstruction of X from Z, with the same dimension as X.
+            gaussians_all (list): A list of all transformed Gaussian samples as tensors.
+            gaussians_decoded_all (list): A list of all gaussian samples decoded.
+
+        Returns:
+            torch.Tensor: A scalar loss value.
+        """ 
+        StandardAutoencoderLoss = []
+        GuassianResponsibilityLoss = []
+        for sample_index, x in enumerate(X):
+            z, z_decoded = model(x)
+            # Gaussianpoints = gaussianMixLatentSpace(sample_index)
+            # proportion = gaussianMixLatentSpace.Proportions[sample_index].data
+            # Gaussianpoints_Responsibilities, _ = gaussianMixLatentSpace.compute_responsibilities(z, Gaussianpoints=Gaussianpoints, 
+            #                                                                                   proportion=proportion)
+            # Compute the reconstruction loss
+            StandardAutoencoderLoss.append(torch.nn.functional.mse_loss(x, z_decoded, reduction='sum')) 
+            # gaussianpoints_per_component = Gaussianpoints[0].shape[0]
+            # scaling_factor = self.eta*gaussianpoints_per_component/proportion
+            # Responsibility_variances = [responsibility.sum(dim=0).var() for responsibility in Gaussianpoints_Responsibilities]
+            # GuassianResponsibilityLoss.append(torch.stack([sf*resp_var for sf,resp_var in 
+            #                                               zip(scaling_factor,Responsibility_variances)]).sum())
+        standardAutoencoderLoss = torch.stack(StandardAutoencoderLoss).sum()
+        #gaussianResponsibilityLoss = torch.stack(GuassianResponsibilityLoss).sum()
+        #loss = standardAutoencoderLoss + gaussianResponsibilityLoss
+        loss = standardAutoencoderLoss
+        # metrics = {'Total Loss': loss.item(), 'StandardAutoencoderLoss': standardAutoencoderLoss.item(),
+        #  'GaussianResponsibilityLoss': gaussianResponsibilityLoss.item()}
+        metrics = {'Total Loss': loss.item(), 'StandardAutoencoderLoss': standardAutoencoderLoss.item()
+        }
+        return loss, metrics
+        
+
+    
+    # def validation_loss(self, X, Z, Z_decoded, Sample2Component, Proportions, Gaussians_all, Gaussians_decoded_all):
+    #     """
+    #     Compute the validation loss.
+    #     Args:
+    #         X (list): A list containing tensors, each representing a batch of DD dimension data points.
+    #         Z (list): A list containing tensors, each representing embeddings of points in X, possibly of a different dimension.
+    #         XR (list): A list containing tensors, each representing the reconstruction of X from Z, with the same dimension as X.
+    #         gaussians_all (list): A list of all transformed Gaussian samples as tensors.
+    #         gaussians_decoded_all (list): A list of all gaussian samples decoded.
+
+    #     Returns:
+    #         torch.Tensor: A scalar loss value.
+    #     """ 
+    #     StandardAutoencoderLoss = []
+    #     # GaussianLatentLoss = []
+    #     # GaussianDecodedLoss = []
+    #     GuassianResponsibilityLoss = []
+    #     for x, z, z_decoded, s2c in zip(X, Z, Z_decoded, Sample2Component):
+    #         # Compute the reconstruction loss
+    #         StandardAutoencoderLoss.append(torch.nn.functional.mse_loss(x, z_decoded, reduction='sum'))
+    #         gaussians = [Gaussians_all[component] for component in s2c]
+    #         # gaussians_decoded = [Gaussians_decoded_all[component] for component in s2c] 
+    #         Gaussianpoints_Responsibilities = self.compute_responsibilities(z, gaussians)
+    #         # matched_gaussianpoints, matched_gaussianpoints_decoded, _, _ \
+    #         #     =self.matchGaussianPoints(z, gaussians, gaussians_decoded, Gaussianpoints_Responsibilities)
+    #         # GaussianLatentLoss.append(self.gamma*torch.nn.functional.mse_loss(z, matched_gaussianpoints, reduction='sum'))
+    #         # GaussianDecodedLoss.append(self.gamma*torch.nn.functional.mse_loss(z_decoded, matched_gaussianpoints_decoded, reduction='sum'))
+    #         GuassianResponsibilityLoss.append(self.eta*torch.stack([responsibility.sum(dim=0).var() for responsibility in Gaussianpoints_Responsibilities]).sum())
+    #     standardAutoencoderLoss = torch.stack(StandardAutoencoderLoss).sum()
+    #     # gaussianLatentLoss = torch.stack(GaussianLatentLoss).sum()
+    #     # gaussianDecodedLoss = torch.stack(GaussianDecodedLoss).sum()
+    #     gaussianResponsibilityLoss = torch.stack(GuassianResponsibilityLoss).sum()
+    #     loss = standardAutoencoderLoss + gaussianResponsibilityLoss
+    #     return loss, standardAutoencoderLoss, gaussianResponsibilityLoss
+
+
