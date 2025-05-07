@@ -40,7 +40,7 @@ class GaussianMixLatentSpace(nn.Module):
     def initializeGMM(self):
         compDist = [MVN(dim=self.dim, unitCov=False) for _ in range(self.num_components)]
         gmm = GMM(self.num_components, self.dim, compDist=compDist, nMix=len(self.Sample2Component),
-                   cMemPerSample=self.Sample2Component, equalPropComps=False, identicalCov=True)
+                   cMemPerSample=self.Sample2Component, equalPropComps=False, identicalCov=False)
         return gmm
 
     def _sample_gaussian(self):

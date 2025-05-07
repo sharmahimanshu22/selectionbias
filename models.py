@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from torch.nn.utils import spectral_norm
 
 class FullyConnectedAutoencoder(nn.Module):
     def __init__(self, input_dim, encoded_dim, width =10, num_layers=10):
@@ -15,11 +16,11 @@ class FullyConnectedAutoencoder(nn.Module):
             for _ in range(num_layers):
                 if _ == num_layers - 1:
                     layer_output_dim = 1
-                encoder_layers.append(nn.Linear(layer_input_dim, layer_output_dim))
+                encoder_layers.append(spectral_norm(nn.Linear(layer_input_dim, layer_output_dim)))
                 if _ < num_layers - 1:
                     #encoder_layers.append(nn.BatchNorm1d(layer_output_dim))
                     #encoder_layers.append(nn.LayerNorm(layer_output_dim))
-                    encoder_layers.append(UnitNormalizationLayer())
+                    #encoder_layers.append(UnitNormalizationLayer())
                     encoder_layers.append(nn.GELU())
                 layer_input_dim = layer_output_dim
             #encoder_layers.append(ElementwiseMultiplicationLayer(dim=encoded_dim))
@@ -34,7 +35,7 @@ class FullyConnectedAutoencoder(nn.Module):
                 layer_output_dim = input_dim
             decoder_layers.append(nn.Linear(layer_input_dim, layer_output_dim))
             if _ < num_layers - 1:
-                encoder_layers.append(UnitNormalizationLayer())
+                #encoder_layers.append(UnitNormalizationLayer())
                 #encoder_layers.append(nn.BatchNorm1d(layer_output_dim))
                 #encoder_layers.append(nn.LayerNorm(layer_output_dim))
                 decoder_layers.append(nn.GELU())

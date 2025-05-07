@@ -13,6 +13,7 @@ from loss import GaussianMixAutoEncoderLoss
 from gaussianMixLatentSpace import GaussianMixLatentSpace
 from torch.utils.tensorboard import SummaryWriter
 from plots import VisualizeInputData
+
 #from plots import ResposibilitiesError
 
 import pdb

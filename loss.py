@@ -68,7 +68,7 @@ class GaussianMixAutoEncoderLoss(nn.Module):
                 Gaussianpoints_weight = [responsibility.mean(dim=0) for responsibility in Gaussianpoints_Responsibilities]
                 #Components_weight = [gpoints_weight.sum() for gpoints_weight in Gaussianpoints_weight]
                 #gPoint_weight_loss = torch.hstack([g_weight.var() for g_weight in Gaussianpoints_weight]).sum()
-                gPoint_weight_loss = ((torch.hstack(Gaussianpoints_weight)-0.01)**2).sum()
+                gPoint_weight_loss = ((torch.hstack(Gaussianpoints_weight)-1/(num_components*gaussianpoints_per_component))**2).sum()
                 #component_weight_loss = torch.hstack([(c_weight-1/num_components)**2 for c_weight in Components_weight]).sum() 
                 #GuassianResponsibilityLoss.append(self.eta*scaling_factor*gPoint_weight_loss + self.eta*0.0*component_weight_loss)
                 GuassianResponsibilityLoss.append(self.eta*scaling_factor*gPoint_weight_loss)

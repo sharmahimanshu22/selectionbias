@@ -31,7 +31,7 @@ def GaussianMixtureDataGenerator(num_samples=1, num_components=2, dim=2):
     #The minimum AUC range for 1 dimensional datasets is [0.7, 0.75].
     #If the AUC range is smaller than that irreducibility can't be achieved when using 
     #irr_vec = [0.01, 0.9, False]
-    aucpn_range = [0.95, 1.0]
+    aucpn_range = [0.8, 0.85]
     #Dataset size
     n = 20000
     #proportion of positives
