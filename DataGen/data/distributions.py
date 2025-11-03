@@ -73,3 +73,22 @@ class mixture:
         denom = sum(R)[:, None]
         R = np.hstack([r[:, None]/denom for r in R])
         return R
+
+    def component_posterior(self, i, x):
+        R = self.component_pdfs(x)
+        R = [a * d for (a, d) in zip(self.mixProp, R)][i]
+        
+        pdf = self.pdf(x)
+        comp_post = R/pdf
+        return comp_post
+        
+
+        #P(c=1|x) = ( P(x) - P(x|c=0)P(c=0) ) / P(x)
+        #P(c=1|x) = ( P(x|c=1)P(c=1) ) / P(x)
+        
+        #P(B|A)P(A) = P(A|B)P(B)
+
+        #P(x) = P(x|c=0)P(c=0) + P(x|c=1)P(c=1) 
+
+        #P(x|c=1)P(c=1) = P(c==1|x)P(x) 
+        
