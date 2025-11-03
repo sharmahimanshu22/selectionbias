@@ -42,6 +42,14 @@ class GMM:
     def attachDebugger(self, debug):
         self.debug = debug
 
+    # si : sample index
+    # ci : component index
+    def comp_posterior(self, si, ci, x):
+        mix = self.mixture[si]
+        return mix.component_posterior(ci,x)
+        
+        
+
     def cMem2SMem(self, cMemPerSample):
         self.sMemPerComp = [[] for _ in range(self.nComps)]
         self.cIndPerComp = [[] for _ in range(self.nComps)]
@@ -146,8 +154,8 @@ class GMM:
         if self.identicalCov:
             cov = self.__updateCovs__()
             self.__separateMeans__(cov)
-       
-        
+
+
     def __updateCovs__(self):
         covs = [cDist.cov for cDist in self.compDist]
         cov = np.mean(covs, axis=0)
