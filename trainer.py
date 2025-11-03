@@ -40,35 +40,29 @@ batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, Y = None):
 
     X_train = [torch.tensor(x_train, dtype=torch.float) for x_train in X_train]
     X_test = [torch.tensor(x_test, dtype=torch.float) for x_test in X_test]
-    # Y_train = [torch.tensor(y_train, dtype=torch.float) for y_train in Y_train]
-    # Y_test = [torch.tensor(y_test, dtype=torch.float) for y_test in Y_test]
 
     Sample2Component = gaussianMixLatentSpace.Sample2Component
 
+    # 16000
     max_data_size = max([x_train.shape[0] for x_train in X_train])  # Maximum number of data points in a dataset
+    # 100
     iterations_per_epoch = max_data_size // batch_size  # Number of iterations per epoch
 
-    #Train_dataset = [TensorDataset(torch.tensor(x_train, dtype=torch.float)) for x_train in X_train]
-    # Train_loader = [DataLoader(train_dataset, batch_size=batch_size, shuffle=True) 
-    #                 for train_dataset in Train_dataset]
-    #Test_dataset = [TensorDataset(torch.tensor(x_test, dtype=torch.float)) for x_test in X_test]
-    # Test_loader = [DataLoader(test_dataset, batch_size=X_test.shape[0], shuffle=True) for test_dataset in Test_dataset]
-    
-
-   
 
     
     best_state = None
     lossTestBest = np.inf
     loss_func = GaussianMixAutoEncoderLoss(gamma=1.0, eta=1.0)
     bestEpoch = 0
-    #Component_Responsibilities = [[torch.ones(x.shape[0], 1)/len(s2c) for _ in s2c] for x, s2c in zip(X_train, Sample2Component)]
+
     for epoch in range(epochs):
+        #print(iterations_per_epoch, batch_size)
         for i in range(iterations_per_epoch):
-            # Batch_Indices = [[WeightedRandomSampler(responsibility.flatten(),batch_size, replacement=True) for responsibility 
-            #        in component_responsibilities] for component_responsibilities in Component_Responsibilities]
+            #print(i)
             Batch_Indices = [gaussianMixLatentSpace.batchIndices(z=model(x)[0], sample_index=s) for s, x in enumerate(X_train)]
             X_Batch = [torch.vstack([x[list(ix)] for ix in batch_indices]) for x, batch_indices in zip(X_train, Batch_Indices)]
+            #above X_Batch has 200 points from original input. They were selected by weighted sampling the model encoded values, based on responsibilities assigned to the encoded values. 100 values for sampled based on responsibility for first component and 100 values were sampled based on responsibility of second component. Responsibility computation
+            
             if epoch < warmup_epochs:
                 if i == 0: 
                     print("Epoch " + str(epoch) + ". Warmup epochs are on")
@@ -84,6 +78,7 @@ batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, Y = None):
                 gaussianMixLatentSpace.fitGMM([model(x[torch.randint(0,x.shape[0],(2000,))])[0] for x in  X_train],
                                                num_iter =  num_iter)
                 loss, metrics, Images  = loss_func(X_Batch, model, gaussianMixLatentSpace, warmup=False)
+
             writer.add_scalars('metrics/train/update', metrics, epoch*iterations_per_epoch + i)
             with torch.no_grad():
                 loss_test, metrics_test = loss_func.validation_loss(X_test, model, gaussianMixLatentSpace)
@@ -95,7 +90,8 @@ batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, Y = None):
             if lossTestBest >= loss_test:
                 lossTestBest = loss_test
                 best_state = {'model':copy.deepcopy(model.state_dict()), 
-                              'gaussianMixLatentSpace':copy.deepcopy(gaussianMixLatentSpace.state_dict())}
+                              'gaussianMixLatentSpace':copy.deepcopy(gaussianMixLatentSpace.state_dict()),
+                              'gmm':copy.deepcopy(gaussianMixLatentSpace.GMM.__dict__)}
                 bestEpoch = epoch
             if i == 0:
                 metricsEpoch = copy.deepcopy(metrics)
@@ -105,19 +101,15 @@ batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, Y = None):
                     metricsEpoch[key] += metrics[key]
                 for key in metrics_test.keys():
                     metricsEpoch_test[key] += metrics_test[key]
-            #if (epoch+1) % 20 == 0 and i == 0:
-            #if True:
             if i == 0:
                 [writer.add_image('Sample '+ str(s) + ' embeddings', 
                     VisualizeEmbeddings(x, y, s, model, gaussianMixLatentSpace), 
                     epoch) for x, y, s in zip(X_test, Y_test, range(len(X_test)))]
-                # Images = [VisualizeMatching(z, matched_gaussianpoints, y) for z, y, gpoints in zip(Z, Y_Batch, Matched_GPoints)]
-                # [writer.add_image('Matching '+str(i), img, epoch) for i, img in enumerate(Images)]
             #Uncomment the line below to learn the proportions
             [gaussianMixLatentSpace.update_proportions(z = model(x)[0],sample_index = s) for s, x in enumerate(X_train)]
             #For some reason the new responsibilities tend to get smaller and smaller for one of the components
-            # Component_Responsibilities = [gaussianMixLatentSpace.compute_responsibilities(z = model(x)[0],sample_index = s)[1] for s, x in enumerate(X_train)]
             gaussianMixLatentSpace.resample()
+            
         metricsEpoch = {key: value/iterations_per_epoch for key, value in metricsEpoch.items()}
         metricsEpoch_test = {key: value/iterations_per_epoch for key, value in metricsEpoch_test.items()}
         writer.add_scalars('metrics/train/Epoch', metricsEpoch, epoch)
@@ -129,13 +121,13 @@ batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, Y = None):
             print("Proportions: " + str(gaussianMixLatentSpace.Proportions[0].data))
             [print(mu.data) for mu in gaussianMixLatentSpace.Mu]
             [print(cov.data) for cov in gaussianMixLatentSpace.Cov]
-        #print(f"Epoch {epoch + 1}/{epochs}, Loss: {loss.item():.4f}, Test Loss: {loss_test.item():.4f}")
 
        
 
     print("Best Epoch: " + str(bestEpoch))
     last_state = {'model':copy.deepcopy(model.state_dict()), 
                               'gaussianMixLatentSpace':copy.deepcopy(gaussianMixLatentSpace.state_dict())}
+    
     return best_state, last_state
 
 
