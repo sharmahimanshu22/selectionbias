@@ -296,7 +296,7 @@ class NormalMixPNParameters:
             self.commitChange()
 
     def perturbMu(self,  aucpn_range, irr_vec):
-        print('Mu Perturb')
+        #print('Mu Perturb')
         c = 1
         delta = np.array([2 * random( ) - 1 for i in np.arange(self.dim)])
         delta = c * delta/np.linalg.norm(delta)
@@ -308,7 +308,7 @@ class NormalMixPNParameters:
             self.proposeChange(mu + up * delta)
 
     def perturbSigmaShape(self,  aucpn_range, irr_vec):
-        print('Sigma Shape Perturb')
+        #print('Sigma Shape Perturb')
         newsigma = spd(self.dim)
         sigma = self.getMarkedParOldValue()
         a = 1.0
@@ -320,13 +320,13 @@ class NormalMixPNParameters:
             self.revert2OldValue()
 
     def perturbSigmaScale(self, aucpn_range, irr_vec):
-        print('Sigma Scale Perturb')
+        #print('Sigma Scale Perturb')
         sigma = self.getMarkedParOldValue()
         a = 0.5
         self.proposeChange(a * sigma)
         while (not (self.isMetricUBSatisfied(aucpn_range, irr_vec) and self.acceptableSigma(a * sigma))):
             a = 1 + (a - 1)/2
-            print(a)
+            #print(a)
             #print('metric:', self.isMetricUBSatisfied(irr_range, aucpn_range))
             #print('acceptable Sigma:', self.acceptableSigma(a * sigma) )
             self.proposeChange(a * sigma)
@@ -334,7 +334,7 @@ class NormalMixPNParameters:
             self.revert2OldValue()
 
     def perturbProportion(self, aucpn_range, irr_vec):
-        print('Perturb Proportion')
+        #print('Perturb Proportion')
         prop = self.getMarkedParOldValue( )
         a = 1
         if self.changeInfo['is_positive']:
@@ -358,7 +358,7 @@ class NormalMixPNParameters:
     def acceptableSigma(self, sigma):
         det = np.linalg.det(sigma)
         ratios = np.array([det/np.linalg.det(sig) for sig in self.sig_pos + self.sig_neg])
-        print('Sigma Ratios: '+ str(ratios))
+        #print('Sigma Ratios: '+ str(ratios))
         #ratios[:] = 1
         return all(ratios >= 0.5) and all(ratios <= 2.0)
 
@@ -371,8 +371,8 @@ class NormalMixPNParameters:
         irr_satisfied_pos = anchorSetProp <= irr_pos
         irr_satisfied_neg = anchorSetProp <= irr_neg
         auc_satisfied = aucpn_range[0] <= metrics['aucpn'] <= aucpn_range[1]
-        print('isMetricSatisfied' + str(metrics))
-        print('anchorSetProp' + str(anchorSetProp))
+        #print('isMetricSatisfied' + str(metrics))
+        #print('anchorSetProp' + str(anchorSetProp))
         return irr_satisfied_pos and auc_satisfied and irr_satisfied_neg
 
     def isMetricUBSatisfied(self, aucpn_range, irr_vec):
@@ -445,7 +445,7 @@ class NormalMixPNParameters:
         return self.changeInfo['oldValue']
 
     def revert2OldValue(self):
-        print('reverting to old value')
+        #print('reverting to old value')
         V = SN(**self.changeInfo)
         self.updatePar(V.is_positive, V.is_mu, V.is_proportion, V.ix, V.oldValue)
         self.changeInfo['changed'] = False
@@ -485,10 +485,10 @@ class NormalMixPNParameters2:
                 aucs = np.array([self.betweenPairAUC(i, j) for j in range(i)])
                 irr_pos, irr_neg = self.irreducibility(irr_vec, i+1)[0:2]
                 #pdb.set_trace()
-                print('i loop')
-                print('aucs' + str(np.min(aucs)))
-                print('irr_pos' + str(irr_pos))
-                print('irr_neg' + str(irr_neg))
+                #print('i loop')
+                #print('aucs' + str(np.min(aucs)))
+                #print('irr_pos' + str(irr_pos))
+                #print('irr_neg' + str(irr_neg))
                 if np.min(irr_pos) < anchorSetProp or np.min(irr_neg) < anchorSetProp or np.min(aucs) < aucpn_range[0]:
                     mu_pos = np.copy(pair1.mu_pos[0])
                     mu_neg = np.copy(pair1.mu_neg[0])
@@ -510,10 +510,10 @@ class NormalMixPNParameters2:
                             pair1.mu_neg[0] = pair1.mu_neg[0] + vec
                             irr_pos, irr_neg = self.irreducibility(irr_vec, i+1)[0:2]
                             aucs = np.array([self.betweenPairAUC(i, j) for j in range(i)])
-                            print('first loop in j loop')
-                            print('aucs' + str(np.min(aucs)))
-                            print('irr_pos' + str(irr_pos))
-                            print('irr_neg' + str(irr_neg))
+                            #print('first loop in j loop')
+                            #print('aucs' + str(np.min(aucs)))
+                            #print('irr_pos' + str(irr_pos))
+                            #print('irr_neg' + str(irr_neg))
                             #pdb.set_trace()
                         #pdb.set_trace()
                         ix = np.random.choice(i,1)
@@ -535,10 +535,10 @@ class NormalMixPNParameters2:
                             aucs = np.array([self.betweenPairAUC(i, j) for j in range(i)])
                             irr_pos, irr_neg = self.irreducibility(irr_vec, i + 1)[0:2]
                             aa1 = aa2
-                            print('second loop in j loop')
-                            print('aucs' + str(np.min(aucs)))
-                            print('irr_pos' + str(irr_pos))
-                            print('irr_neg' + str(irr_neg))
+                            #print('second loop in j loop')
+                            #print('aucs' + str(np.min(aucs)))
+                            #print('irr_pos' + str(irr_pos))
+                            #print('irr_neg' + str(irr_neg))
                             if np.min(aucs) < aucpn_range[0] or np.min(irr_pos) < anchorSetProp or \
                                     np.min(irr_neg) < anchorSetProp:
                                 a2 = aa2
@@ -549,10 +549,10 @@ class NormalMixPNParameters2:
                                 pdb.set_trace()
 
                         #pdb.set_trace()
-                        print('after two j loops')
-                        print('aucs' + str(np.min(aucs)))
-                        print('irr_pos' + str(irr_pos))
-                        print('irr_neg' + str(irr_neg))
+                        #print('after two j loops')
+                        #print('aucs' + str(np.min(aucs)))
+                        #print('irr_pos' + str(irr_pos))
+                        #print('irr_neg' + str(irr_neg))
                         if np.min(aucs) >= aucpn_range[0] and np.min(aucs) <= aucpn_range[1] and \
                                 np.min(irr_pos) > anchorSetProp and np.min(irr_neg) > anchorSetProp:
                             mu_pos_best = np.copy(pair1.mu_pos[0])
@@ -572,10 +572,10 @@ class NormalMixPNParameters2:
                     aucs = np.array([self.betweenPairAUC(i, j) for j in range(i)])
                     irr_pos, irr_neg = self.irreducibility(irr_vec, i + 1)[0:2]
                     #pdb.set_trace()
-                    print('after j loops')
-                    print('aucs' + str(np.min(aucs)))
-                    print('irr_pos' + str(irr_pos))
-                    print('irr_neg' + str(irr_neg))
+                    #print('after j loops')
+                    #print('aucs' + str(np.min(aucs)))
+                    #print('irr_pos' + str(irr_pos))
+                    #print('irr_neg' + str(irr_neg))
 
 
     def irreducibility(self, irr_vec, ncmps=None):
