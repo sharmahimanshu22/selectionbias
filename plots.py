@@ -8,6 +8,9 @@ from DataGen.plots.CIEllipse import CIEllipse
 from DataGen.plots import sortedplot as sp
 
 
+    
+    
+
 def VisualizeEmbeddings(x, y, sample_index, model, gaussianMixLatentSpace):
     num_components_true = np.unique(y).shape[0]
     num_gaussianpoints_per_component = gaussianMixLatentSpace.points_per_component
@@ -22,14 +25,14 @@ def VisualizeEmbeddings(x, y, sample_index, model, gaussianMixLatentSpace):
         plt.scatter(z[:, 0], z[:, 1], label='Direct', alpha=0.5)
         mean = np.mean(z, axis=0)
         cov = np.cov(z.T)
-        CIEllipse(mean, cov, plt.gca(), n_std=1.0, facecolor='none', edgecolor='k')
+        CIEllipse(mean, cov, plt.gca(), n_std=1.0, facecolor='none', edgecolor='black') # true
     for comp_index, gaussian in zip(gaussianMixLatentSpace.Sample2Component[sample_index], Gaussianpoints):
         #plt.scatter(gaussian[:, 0], gaussian[:, 1], label='Indirect', alpha=0.2)
         # mean = gaussianMixLatentSpace.Mu[comp_index].detach().numpy()
         # cov = gaussianMixLatentSpace.Cov[comp_index].detach().numpy()
         mu = gaussianMixLatentSpace.GMM.compDist[comp_index].mu
         cov = gaussianMixLatentSpace.GMM.compDist[comp_index].cov
-        CIEllipse(mu, cov, plt.gca(), n_std=1.0, facecolor='none', edgecolor='red')
+        CIEllipse(mu, cov, plt.gca(), n_std=1.0, facecolor='none', edgecolor='red')  # estimated
     plt.title('Embeddings')
     plt.legend()
      # Save the plot to a buffer
