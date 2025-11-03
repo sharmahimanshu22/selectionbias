@@ -13,10 +13,117 @@ from loss import GaussianMixAutoEncoderLoss
 from gaussianMixLatentSpace import GaussianMixLatentSpace
 from torch.utils.tensorboard import SummaryWriter
 from plots import VisualizeInputData
-
+import matplotlib.pyplot as plt
+import io
+from PIL import Image
+from scipy.stats import multivariate_normal as mvn
 #from plots import ResposibilitiesError
+from DataGen.data.distributions import mixture
+import pandas as pd
 
 import pdb
+import os
+import math
+from DataGen.plots.CIEllipse import CIEllipse
+import json
+import pickle
+
+def transform3_single(e,f):
+    return [math.exp(e[0])*math.cos(e[1]), math.exp(e[0])*math.sin(e[1])]
+
+def transform3(X , y):
+    z = np.array([e[0] for e in y])
+    Xt = np.array([ transform3_single(e,f) for e,f in zip(X, z)])
+    return Xt
+
+def transform2_single(e, f):
+    if f == 0:
+        return [e[0] + e[1],e[0] - e[1]] 
+    if f == 1:
+        return [e[0] + e[1],e[0] - e[1]] 
+
+def transform2(X , y):
+    z = np.array([e[0] for e in y])
+    Xt = np.array([ transform2_single(e,f) for e,f in zip(X, z)])
+    return Xt
+
+def transform1_single(e, f):
+    if f == 0:
+        return [e[0]*e[0] + e[1]*e[1],e[0]*e[0] - e[1]*e[1]] 
+    if f == 1:
+        return [e[0]*e[0] + e[1]*e[1],e[0]*e[0] - e[1]*e[1]] 
+
+def transform1(X , y):
+    z = np.array([e[0] for e in y])
+    Xt = np.array([ transform1_single(e,f) for e,f in zip(X, z)])
+    return Xt
+    
+
+def savedata(dirname, X, Y, Responsibilities_true, sample2Component, Mu, Cov, Proportions):
+    os.makedirs(dirname, exist_ok=True)
+    np.savetxt(dirname + "/xarray.txt",X[0])
+    np.savetxt(dirname + "/yarray.txt", Y[0], fmt="%d")
+    np.savetxt(dirname + "/responsibilities.txt", Responsibilities_true[0])
+    np.savetxt(dirname + "/sample2comp.txt", sample2Component, fmt="%d")
+    np.savetxt(dirname + "/mu.txt" , Mu)
+    np.savetxt(dirname + "/cov1.txt", Cov[0])
+    np.savetxt(dirname + "/cov2.txt", Cov[1])
+    np.savetxt(dirname + "/proportions.txt", Proportions)
+    
+def get_fixed_data(dirname = "fixeddata"):
+    X = [np.loadtxt(dirname +"/xarray.txt")]
+    Y = [np.loadtxt(dirname + "/yarray.txt", dtype=int)]
+    Y = [np.array([ [e] for e in Y[0]])] 
+    Responsibilities_true = [np.loadtxt(dirname + "/responsibilities.txt")]
+    sample2Component = [np.loadtxt(dirname + "/sample2comp.txt", dtype=int)]
+    Mu = np.loadtxt(dirname+"/mu.txt")
+    Cov1 = np.loadtxt(dirname+"/cov1.txt")
+    Cov2 = np.loadtxt(dirname+"/cov2.txt")
+    Cov = [Cov1, Cov2]
+    Proportions = np.loadtxt(dirname+"/proportions.txt")
+    return X, Y, Responsibilities_true, sample2Component, Mu, Cov, Proportions
+
+def visualizeinput(X,y):
+
+    
+    for i, (x,y) in enumerate(zip(X, Y)):
+        if len(X) == 2:
+            plt.subplot(2,1,i)
+        if len(X) == 3:
+            plt.subplot(2,2,i)
+        plt.title('Sample '+str(i))
+        for c in np.unique(y):
+            xx= x[(y==c).flatten()]
+            ix = np.random.choice(xx.shape[0], 100, replace=True)
+            plt.scatter(xx[ix, 0], xx[ix, 1], label='C'+str(c), alpha=0.5) 
+            cov = np.cov(xx.T)
+            mean = np.mean(xx, axis=0)
+            CIEllipse(mean, cov, plt.gca(), n_std=1.0, facecolor='none', edgecolor='k')
+    plt.legend()
+    
+    '''
+    z = np.array([e[0] for e in y])
+    #print("Zhere: ", z)
+    comp1data = X[z==0][:200]
+    comp2data = X[z==1][:200]
+    #print("compdatalen")
+    #print(len(comp1data))
+    #print(len(comp2data))
+    plt.scatter(comp1data[:,0], comp1data[:,1], color='r', s = 2)
+    plt.scatter(comp2data[:,0], comp2data[:,1], color='b', s = 2)
+    '''
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close()
+    # Convert the buffer to a PIL Image
+    image = Image.open(buf)
+    # Convert the PIL Image to a NumPy array
+    image = np.array(image)
+    # Convert the NumPy array to a PyTorch tensor
+    image = torch.tensor(image).permute(2, 0, 1)  # Change the order of dimensions to [C, H, W]
+    return image
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -40,9 +147,38 @@ if __name__ == '__main__':
     # Currently the Gaussian GaussianMixtureDataGenerator assumes that all samples 
     # have the same components. This is fine for now. But when moving to P, N and U data
     # this will need to change.
-    X, Y, Responsibilities_true, sample2Component, Mu, Cov, Proportions \
-    = GaussianMixtureDataGenerator(num_samples=num_samples, num_components=num_components, dim=input_dim)
-    VisualizeInputData(X,Y)
+
+    usefixed = True
+    
+    if usefixed:
+        X, Y, Responsibilities_true, sample2Component, Mu, Cov, Proportions = get_fixed_data("frozendata")
+    else:
+        X, Y, Responsibilities_true, sample2Component, Mu, Cov, Proportions, \
+            = GaussianMixtureDataGenerator(num_samples=num_samples, num_components=num_components, dim=input_dim)
+        #savedata("fixeddata", X, Y, Responsibilities_true, sample2Component, Mu, Cov, Proportions)
+        #print(sample2Component)
+
+
+    
+    
+
+    writer.add_image("InitialInput", visualizeinput(X, Y))
+    writer.flush()
+    
+    #df = pd.dataFrame("Xx", "Xy", "y", "resp_true_1", "resp_true_2" , "sample2comp", "mu", "cov", "Proportions")
+    
+    # x^2 + y^2, x^2 - y^2
+    X = [transform3(X[0], Y[0])]
+
+    #X = [ np.array([  [e[0]*e[0] + e[1]*e[1],e[0]*e[0] - e[1]*e[1]] for e in X[0]  ]) ]
+    #Xt = [transform(X[0], Y[0])]
+
+    
+    writer.add_image("TransformedInput", visualizeinput(X, Y))
+    writer.flush()
+
+    #VisualizeInputData(X,Y)
+    print("did visualization")
     Sample_Sizes = [x.shape[0]*(1-test_size) for x in X]
     Proportions0 = copy.deepcopy(Proportions)
     # Mu0 = copy.deepcopy(Mu)
@@ -76,4 +212,53 @@ if __name__ == '__main__':
     #                 ResposibilitiesError(Responsibilities_true, Component_Responsibilities), epochs)
     # [print('Proportions True')]
     writer.close()
-   
+
+    
+    pred_post = last_state['gaussianMixLatentSpace']
+
+    comp1true = mvn(mean = Mu[0], cov = Cov[0])
+    comp2true = mvn(mean = Mu[1], cov = Cov[1])
+    mix_prop_true = Proportions
+    dist = mixture([comp1true, comp2true], mix_prop_true)
+    
+    comp1 = mvn(mean=pred_post['Mu.0'], cov=pred_post['Cov.0'])
+    comp2 = mvn(mean=pred_post['Mu.1'], cov=pred_post['Cov.1'])
+    mix_proportions_best_state = pred_post['Proportions.0']
+    dist2 = mixture([comp1, comp2], mix_proportions_best_state)
+
+
+    mix_proportions_gmm = torch.tensor(best_state['gmm']['mProp'][0])
+    
+    
+    true_comp1 = dist.component_posterior(0,X[0])
+    true_comp2 = dist.component_posterior(1,X[0])
+    pred_comp1 = dist2.component_posterior(0, model(torch.tensor(X[0], dtype=torch.float32))[0].detach().numpy())
+    pred_comp2 = dist2.component_posterior(1, model(torch.tensor(X[0], dtype=torch.float32))[0].detach().numpy())
+
+    _, component_responsibilities_mix_proportions_best_state, _ = gaussianMixLatentSpace.compute_responsibilities(
+        model(torch.tensor(X[0], dtype=torch.float32))[0], proportion = mix_proportions_best_state)
+
+    component_responsibilities_mix_proportions_best_state_comp1 = component_responsibilities_mix_proportions_best_state[0].detach().numpy().flatten()
+    component_responsibilities_mix_proportions_best_state_comp2 = component_responsibilities_mix_proportions_best_state[1].detach().numpy().flatten()
+    
+    _, component_responsibilities_mix_proportions_gmm, _ = gaussianMixLatentSpace.compute_responsibilities(
+        model(torch.tensor(X[0], dtype=torch.float32))[0], proportion = mix_proportions_gmm)
+    component_responsibilities_mix_proportions_gmm_comp1 = component_responsibilities_mix_proportions_gmm[0].detach().numpy().flatten()
+    component_responsibilities_mix_proportions_gmm_comp2 = component_responsibilities_mix_proportions_gmm[1].detach().numpy().flatten()
+
+    
+    #print(component_responsibilities_mix_proportions_best_state_comp1, " \ncomponent_responsibilities_mix_proportions_best_state")
+    pars = {"Mu0": Mu[0], "Mu1": Mu[1], "Cov0": Cov[0],  "Cov1": Cov[1], "ProportionsTrue":  mix_prop_true, "mix_proportions_best_state" : mix_proportions_best_state , "mix_proportions_gmm" : mix_proportions_gmm}
+
+    with open('saved_dictionary.pkl', 'wb') as f:
+        pickle.dump(pars, f)
+    
+    
+    data = {'truecomp1': true_comp1, 'truecomp2': true_comp2, 'predcomp1': pred_comp1, 'predcomp2': pred_comp2,
+            'component_responsibilities_mix_proportions_best_state_comp1':component_responsibilities_mix_proportions_best_state_comp1,
+            'component_responsibilities_mix_proportions_best_state_comp2':component_responsibilities_mix_proportions_best_state_comp2,
+            'component_responsibilities_mix_proportions_gmm_comp1' : component_responsibilities_mix_proportions_gmm_comp1,
+            'component_responsibilities_mix_proportions_gmm_comp2' : component_responsibilities_mix_proportions_gmm_comp2
+            }
+    df = pd.DataFrame(data)
+    df.to_csv("posteriors.txt", index=False)
