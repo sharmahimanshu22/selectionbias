@@ -34,7 +34,10 @@ class MVN():
 
     def logpdf(self, x):
         #pdb.set_trace()
-        return multivariate_normal(self.mu, self.cov).logpdf(x)
+        try:
+            return multivariate_normal(self.mu, self.cov).logpdf(x)
+        except:
+            print(self.mu, self.cov)
 
     def fit(self, X, W):
         #pdb.set_trace()
