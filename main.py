@@ -191,8 +191,27 @@ def get_hyperparameters(input_context):
     return HyperParameters(sample_sizes,test_size, batch_size,  gmls_sigma, encoded_dim_autoencoder, num_layers_autoencoder, width_autoencoder, learning_rate,
                            n_epochs, warmup_epochs)
 
+def get_input_context_two_sample_two_comps(args = None):  
+    frozendata = False
+    loaddir = None
+    savedir = None
+    if args is not None:
+        frozendata = args.usefrozen
+        loaddir = args.datadir
+        savedir = args.storedir
+    n_samples = 2
+    n_pos_comps = 1
+    n_neg_comps = 1
+    input_dim = 2
+    sample_to_pos_comp_idces = [[0], [0]]
+    sample_to_pos_comps_mix_prop = [[0.8], [0.2]]
+    sample_to_neg_comp_idces = [[0], [0]]
+    sample_to_neg_comps_mix_prop = [[0.2], [0.8]]
+    sample_sizes = [20000, 20000]
+    return Context(n_samples, n_pos_comps,n_neg_comps, input_dim, sample_to_pos_comp_idces, 
+                   sample_to_pos_comps_mix_prop, sample_to_neg_comp_idces, sample_to_neg_comps_mix_prop, sample_sizes, frozendata, loaddir, savedir)
 
-def get_input_context(args = None):  
+def get_input_context_one_sample_two_comps(args = None):  
     frozendata = False
     loaddir = None
     savedir = None
@@ -245,7 +264,7 @@ def initialize_our_gaussian_mix_latent_space(context: Context, hp : HyperParamet
 
 def main():
     args = get_argparer().parse_args()
-    context = get_input_context(args)
+    context = get_input_context_one_sample_two_comps(args)
     hp = get_hyperparameters(context)
     writer = SummaryWriter()
 
