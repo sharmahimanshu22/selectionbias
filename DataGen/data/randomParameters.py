@@ -464,8 +464,6 @@ class NormalMixPNParameters2:
     def __init__(self, dim, nComps):
         self.dim = dim
         self.nComps = nComps
-        #self.aucpn_range = aucpn_range
-        #self.irr_vec = irr_vec
         self.NormalPNPars = [NormalMixPNParameters(dim, 1) for i in np.arange(nComps)]
         self.alpha = random()
         self.p_pos = dirichlet(np.ones(self.nComps)).rvs([])
