@@ -28,8 +28,16 @@ from DataGen.plots.CIEllipse import CIEllipse
 import json
 import pickle
 import sys
+import argparse
 
 
+
+def get_argparer():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--usefrozen', action='store_true', help='Use stored data')
+    parser.add_argument("-dd", "--datadir",type=str, help="directory to load data from")
+    parser.add_argument("-sd", "--storedir", type=str, help="directory to save data in")
+    return parser
 
 
 
@@ -151,7 +159,7 @@ class HyperParameters:
 
 class Context:
     def __init__(self, n_samples, n_pos_compos, n_neg_comps, dim, sample_to_pos_comp_idces,sample_to_pos_comps_mix_prop,
-                 sample_to_neg_comp_idces,sample_to_neg_comps_mix_prop, sample_sizes, frozendata):
+                 sample_to_neg_comp_idces,sample_to_neg_comps_mix_prop, sample_sizes, frozendata, loaddir, savedir):
         self.n_samples = n_samples
         self.n_pos_comps = n_pos_compos
         self.n_neg_comps = n_neg_comps
@@ -162,6 +170,10 @@ class Context:
         self.sample_to_neg_comps_mix_prop = sample_to_neg_comps_mix_prop
         self.sample_sizes = sample_sizes
         self.frozendata = frozendata
+        if loaddir is not None:
+            self.loaddir = os.path.join(os.getcwd(), loaddir)
+        if savedir is not None:
+            self.savedir = os.path.join(os.getcwd(), savedir)
 
 
 
@@ -180,8 +192,14 @@ def get_hyperparameters(input_context):
                            n_epochs, warmup_epochs)
 
 
-def get_input_context():   
-    frozendata = True 
+def get_input_context(args = None):  
+    frozendata = False
+    loaddir = None
+    savedir = None
+    if args is not None:
+        frozendata = args.usefrozen
+        loaddir = args.datadir
+        savedir = args.storedir
     n_samples = 1
     n_pos_comps = 1
     n_neg_comps = 1
@@ -192,17 +210,17 @@ def get_input_context():
     sample_to_neg_comps_mix_prop = [[0.2]]
     sample_sizes = [20000]
     return Context(n_samples, n_pos_comps,n_neg_comps, input_dim, sample_to_pos_comp_idces, 
-                   sample_to_pos_comps_mix_prop, sample_to_neg_comp_idces, sample_to_neg_comps_mix_prop, sample_sizes, frozendata)
+                   sample_to_pos_comps_mix_prop, sample_to_neg_comp_idces, sample_to_neg_comps_mix_prop, sample_sizes, frozendata, loaddir, savedir)
 
 
 def get_our_input_data(context):
     if context.frozendata:
-        return MultiSampleGaussianMixData.load_from("checksave")
+        return MultiSampleGaussianMixData.load_from(context.loaddir)
 
     msgmd = GaussianMixtureDataGenerator2(context.n_samples, context.n_pos_comps, context.n_neg_comps, 
                                          context.input_dim, context.sample_to_pos_comp_idces, context.sample_to_pos_comps_mix_prop, 
                                          context.sample_to_neg_comp_idces, context.sample_to_neg_comps_mix_prop, context.sample_sizes)
-    msgmd.save_this("checksave")
+    msgmd.save_this(context.savedir)
     return msgmd
 
 def initialize_our_gaussian_mix_latent_space(context: Context, hp : HyperParameters):
@@ -226,7 +244,8 @@ def initialize_our_gaussian_mix_latent_space(context: Context, hp : HyperParamet
                                   points_per_component=hp.batch_size, sigma=hp.gmls_sigma)
 
 def main():
-    context = get_input_context()
+    args = get_argparer().parse_args()
+    context = get_input_context(args)
     hp = get_hyperparameters(context)
     writer = SummaryWriter()
 
