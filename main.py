@@ -2,7 +2,7 @@
 
 # Press ⌃R to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
-from MultiSampleMixtureData import GaussianMixtureDataGenerator
+from MultiSampleMixtureData import GaussianMixtureDataGenerator, MultiSampleGaussianMixData, GaussianMixtureDataGenerator2
 from trainer import trainer
 from models import FullyConnectedAutoencoder as Model
 from torch import optim
@@ -27,6 +27,11 @@ import math
 from DataGen.plots.CIEllipse import CIEllipse
 import json
 import pickle
+import sys
+
+
+
+
 
 def transform3_single(e,f):
     return [math.exp(e[0])*math.cos(e[1]), math.exp(e[0])*math.sin(e[1])]
@@ -125,8 +130,129 @@ def visualizeinput(X,y):
     image = torch.tensor(image).permute(2, 0, 1)  # Change the order of dimensions to [C, H, W]
     return image
 
+
+
+
+class HyperParameters:
+    def __init__(self, sample_sizes, test_size, batch_size, gmls_sigma, encoded_dim_autoencoder, num_layers_autoencoder, width_autoencoder, 
+                 learning_rate, n_epochs,warmup_epochs):
+        self.sample_sizes_training = [e*(1-test_size) for e in sample_sizes] # a hyper parameter dependent on input sample sizes. isn't that bad ?
+        self.batch_size = batch_size
+        self.gmls_sigma = gmls_sigma
+        self.encoded_dim_autoencoder = encoded_dim_autoencoder
+        self.num_layers_autoencoder = num_layers_autoencoder
+        self.width_autoencoder = width_autoencoder
+        self.test_size = test_size
+        self.learning_rate = learning_rate
+        self.n_epochs = n_epochs
+        self.warmup_epochs = warmup_epochs
+
+        
+
+class Context:
+    def __init__(self, n_samples, n_pos_compos, n_neg_comps, dim, sample_to_pos_comp_idces,sample_to_pos_comps_mix_prop,
+                 sample_to_neg_comp_idces,sample_to_neg_comps_mix_prop, sample_sizes, frozendata):
+        self.n_samples = n_samples
+        self.n_pos_comps = n_pos_compos
+        self.n_neg_comps = n_neg_comps
+        self.input_dim = dim
+        self.sample_to_pos_comp_idces = sample_to_pos_comp_idces
+        self.sample_to_pos_comps_mix_prop = sample_to_pos_comps_mix_prop
+        self.sample_to_neg_comp_idces = sample_to_neg_comp_idces
+        self.sample_to_neg_comps_mix_prop = sample_to_neg_comps_mix_prop
+        self.sample_sizes = sample_sizes
+        self.frozendata = frozendata
+
+
+
+def get_hyperparameters(input_context):
+    sample_sizes = input_context.sample_sizes
+    test_size = 0.2
+    batch_size = 100
+    gmls_sigma = 0.1
+    encoded_dim_autoencoder = 2
+    num_layers_autoencoder = 10
+    width_autoencoder = 10
+    learning_rate = 0.001
+    n_epochs = 100
+    warmup_epochs = 20
+    return HyperParameters(sample_sizes,test_size, batch_size,  gmls_sigma, encoded_dim_autoencoder, num_layers_autoencoder, width_autoencoder, learning_rate,
+                           n_epochs, warmup_epochs)
+
+
+def get_input_context():   
+    frozendata = True 
+    n_samples = 1
+    n_pos_comps = 1
+    n_neg_comps = 1
+    input_dim = 2
+    sample_to_pos_comp_idces = [[0]]
+    sample_to_pos_comps_mix_prop = [[0.8]]
+    sample_to_neg_comp_idces = [[0]]
+    sample_to_neg_comps_mix_prop = [[0.2]]
+    sample_sizes = [20000]
+    return Context(n_samples, n_pos_comps,n_neg_comps, input_dim, sample_to_pos_comp_idces, 
+                   sample_to_pos_comps_mix_prop, sample_to_neg_comp_idces, sample_to_neg_comps_mix_prop, sample_sizes, frozendata)
+
+
+def get_our_input_data(context):
+    if context.frozendata:
+        return MultiSampleGaussianMixData.load_from("checksave")
+
+    msgmd = GaussianMixtureDataGenerator2(context.n_samples, context.n_pos_comps, context.n_neg_comps, 
+                                         context.input_dim, context.sample_to_pos_comp_idces, context.sample_to_pos_comps_mix_prop, 
+                                         context.sample_to_neg_comp_idces, context.sample_to_neg_comps_mix_prop, context.sample_sizes)
+    msgmd.save_this("checksave")
+    return msgmd
+
+def initialize_our_gaussian_mix_latent_space(context: Context, hp : HyperParameters):
+    Mu0 = [np.ones((context.input_dim,)) + np.random.normal(size=(context.input_dim,))*0.1 for _ in range(context.n_pos_comps + context.n_neg_comps)]
+    Cov0 = [np.eye(context.input_dim) for _ in range(context.n_pos_comps + context.n_neg_comps)]
+    sample_to_ncomps = [ len(e) + len(f) for e,f in zip(context.sample_to_pos_comp_idces, context.sample_to_neg_comp_idces)]
+    Proportions0 = [np.ones(e) / e for e in sample_to_ncomps]
+    
+    sample_to_Component_Idces_Combined = []
+    for i in range(context.n_samples):
+        p = copy.copy(context.sample_to_pos_comp_idces[i])
+        n = copy.copy(context.sample_to_neg_comp_idces[i])
+        n = [e + context.n_pos_comps for e in n]
+        v = p + n # concatenate lists
+        sample_to_Component_Idces_Combined.append(v)
+
+    # We might need to make a separte context for hyper parameters of our models and latent space 
+
+    return GaussianMixLatentSpace(Mu0, Cov0, Sample2Component=sample_to_Component_Idces_Combined, 
+                                  Proportions=Proportions0, Sample_Sizes=hp.sample_sizes_training, 
+                                  points_per_component=hp.batch_size, sigma=hp.gmls_sigma)
+
+def main():
+    context = get_input_context()
+    hp = get_hyperparameters(context)
+    writer = SummaryWriter()
+
+    msgmd = get_our_input_data(context)   # data
+    
+    gaussianMixLatentSpace = initialize_our_gaussian_mix_latent_space(context, hp) # gaussian mix latent space
+    model = Model(input_dim=context.input_dim, encoded_dim=hp.encoded_dim_autoencoder, width=hp.width_autoencoder, num_layers=hp.num_layers_autoencoder)
+    parameters = list(model.parameters()) + list(gaussianMixLatentSpace.parameters())
+    optimizer = optim.Adam(parameters, lr=hp.learning_rate)
+    loss_func = GaussianMixAutoEncoderLoss(gamma=1.0, eta=0.0)
+
+    best_state, last_state = trainer(msgmd, model, gaussianMixLatentSpace, loss_func, optimizer, 
+                                     test_size=hp.test_size, batch_size=hp.batch_size, epochs=hp.n_epochs, 
+                                     warmup_epochs= hp.warmup_epochs, writer=writer)
+
+
+
+
+    sys.exit(0)
+
+
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    main()
      # Training parameters
     input_dim = 2
     num_components = 2
@@ -159,8 +285,17 @@ if __name__ == '__main__':
         #print(sample2Component)
 
 
+    gmd = GaussianMixData(X, Y, Responsibilities_true, sample2Component, Mu, Cov, Proportions)
+
     
+
+    print(true_resps)
+
+    sys.exit(0)
     
+
+
+
 
     writer.add_image("InitialInput", visualizeinput(X, Y))
     writer.flush()
@@ -201,6 +336,9 @@ if __name__ == '__main__':
     best_state, last_state = trainer(X, model, gaussianMixLatentSpace, loss_func, optimizer, 
                                      test_size=test_size, batch_size=batch_size, epochs=epochs, 
                                      warmup_epochs= warmup_epochs, writer=writer, Y=Y)
+    exit
+
+
     model.load_state_dict(best_state['model'])
     gaussianMixLatentSpace.load_state_dict(best_state['gaussianMixLatentSpace'])
     with torch.no_grad():
@@ -213,7 +351,6 @@ if __name__ == '__main__':
     # [print('Proportions True')]
     writer.close()
 
-    
     pred_post = last_state['gaussianMixLatentSpace']
 
     comp1true = mvn(mean = Mu[0], cov = Cov[0])

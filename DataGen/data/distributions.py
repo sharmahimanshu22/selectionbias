@@ -66,21 +66,15 @@ class mixture:
     def component_pdfs(self, x):
         return (comp.pdf(x) for comp in self.comps)
 
-    def responsibility(self, x):
+    def responsibility(self, x): 
         R = self.component_pdfs(x)
         #pdb.set_trace()
         R = [a * d for (a, d) in zip(self.mixProp, R)]
-        denom = sum(R)[:, None]
+        denom = sum(R)[:, None]  
         R = np.hstack([r[:, None]/denom for r in R])
+ 
         return R
 
-    def component_posterior(self, i, x):
-        R = self.component_pdfs(x)
-        R = [a * d for (a, d) in zip(self.mixProp, R)][i]
-        
-        pdf = self.pdf(x)
-        comp_post = R/pdf
-        return comp_post
         
 
         #P(c=1|x) = ( P(x) - P(x|c=0)P(c=0) ) / P(x)

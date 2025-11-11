@@ -7,12 +7,16 @@ from torch.utils.data import WeightedRandomSampler
 from plots import VisualizeEmbeddings
 #from plots import VisualizeGMMFit
 import copy
+import sys
+from packageutils import *
 
 import torch
 import numpy as np
 
-def trainer(X, model, gaussianMixLatentSpace, loss_func,  optimizer, test_size=0.2, 
-batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, Y = None):
+def trainer(msgmd, model, gaussianMixLatentSpace, loss_func,  optimizer, test_size=0.2, 
+batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, ):
+    X = msgmd.X
+    Y = msgmd.y
     #input_dim = X[0].shape[1]
     if type(batch_size) == float:
         batch_size = int(batch_size*X.shape[0])
@@ -41,15 +45,11 @@ batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, Y = None):
     X_train = [torch.tensor(x_train, dtype=torch.float) for x_train in X_train]
     X_test = [torch.tensor(x_test, dtype=torch.float) for x_test in X_test]
 
-    Sample2Component = gaussianMixLatentSpace.Sample2Component
-
     # 16000
     max_data_size = max([x_train.shape[0] for x_train in X_train])  # Maximum number of data points in a dataset
     # 100
     iterations_per_epoch = max_data_size // batch_size  # Number of iterations per epoch
 
-
-    
     best_state = None
     lossTestBest = np.inf
     loss_func = GaussianMixAutoEncoderLoss(gamma=1.0, eta=1.0)
@@ -61,7 +61,9 @@ batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, Y = None):
             #print(i)
             Batch_Indices = [gaussianMixLatentSpace.batchIndices(z=model(x)[0], sample_index=s) for s, x in enumerate(X_train)]
             X_Batch = [torch.vstack([x[list(ix)] for ix in batch_indices]) for x, batch_indices in zip(X_train, Batch_Indices)]
-            #above X_Batch has 200 points from original input. They were selected by weighted sampling the model encoded values, based on responsibilities assigned to the encoded values. 100 values for sampled based on responsibility for first component and 100 values were sampled based on responsibility of second component. Responsibility computation
+            #above X_Batch has 200 points from original input. They were selected by weighted sampling the model encoded values, 
+            # based on responsibilities assigned to the encoded values. 100 values for sampled based on responsibility for first 
+            # component and 100 values were sampled based on responsibility of second component. Responsibility computation
             
             if epoch < warmup_epochs:
                 if i == 0: 
@@ -105,11 +107,14 @@ batch_size=0.2, epochs=1000, warmup_epochs = 20, writer=None, Y = None):
                 [writer.add_image('Sample '+ str(s) + ' embeddings', 
                     VisualizeEmbeddings(x, y, s, model, gaussianMixLatentSpace), 
                     epoch) for x, y, s in zip(X_test, Y_test, range(len(X_test)))]
+                produce_posterior_report_for_sample(0, gaussianMixLatentSpace, model, msgmd, X_test, writer, epoch)
+
             #Uncomment the line below to learn the proportions
             [gaussianMixLatentSpace.update_proportions(z = model(x)[0],sample_index = s) for s, x in enumerate(X_train)]
             #For some reason the new responsibilities tend to get smaller and smaller for one of the components
             gaussianMixLatentSpace.resample()
-            
+
+        
         metricsEpoch = {key: value/iterations_per_epoch for key, value in metricsEpoch.items()}
         metricsEpoch_test = {key: value/iterations_per_epoch for key, value in metricsEpoch_test.items()}
         writer.add_scalars('metrics/train/Epoch', metricsEpoch, epoch)

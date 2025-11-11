@@ -126,3 +126,28 @@ def VisualizeInputData(X, Y):
     plt.legend()
     plt.show()
     
+    
+
+
+def plot_all_posteriors(responsibilities_true, responsibilities_pred):
+    
+    fig, axes = plt.subplots(nrows=len(responsibilities_true), ncols=len(responsibilities_pred)) 
+
+    for i in range(len(responsibilities_true)):
+        for j in range(len(responsibilities_pred)):
+            axes[i,j].scatter(responsibilities_true[i], responsibilities_pred[j])
+    # Save the plot to a buffer
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+
+    # Convert the buffer to a PIL Image
+    image = Image.open(buf)
+
+    # Convert the PIL Image to a NumPy array
+    image = np.array(image)
+
+    # Convert the NumPy array to a PyTorch tensor
+    image = torch.tensor(image).permute(2, 0, 1)  # Change the order of dimensions to [C, H, W]
+
+    return image
