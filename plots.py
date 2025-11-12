@@ -6,6 +6,7 @@ from PIL import Image
 import numpy as np
 from DataGen.plots.CIEllipse import CIEllipse
 from DataGen.plots import sortedplot as sp
+from MultiSampleMixtureData import *
 
 
     
@@ -130,24 +131,44 @@ def VisualizeInputData(X, Y):
 
 
 def plot_all_posteriors(responsibilities_true, responsibilities_pred):
-    
     fig, axes = plt.subplots(nrows=len(responsibilities_true), ncols=len(responsibilities_pred)) 
-
     for i in range(len(responsibilities_true)):
         for j in range(len(responsibilities_pred)):
             axes[i,j].scatter(responsibilities_true[i], responsibilities_pred[j])
-    # Save the plot to a buffer
-    buf = io.BytesIO()
+    
+    buf = io.BytesIO()   # Save the plot to a buffer
     fig.savefig(buf, format='png')
     buf.seek(0)
-
-    # Convert the buffer to a PIL Image
-    image = Image.open(buf)
-
-    # Convert the PIL Image to a NumPy array
-    image = np.array(image)
-
-    # Convert the NumPy array to a PyTorch tensor
-    image = torch.tensor(image).permute(2, 0, 1)  # Change the order of dimensions to [C, H, W]
-
+    image = Image.open(buf)   # Convert the buffer to a PIL Image
+    image = np.array(image) # Convert the PIL Image to a NumPy array
+    image = torch.tensor(image).permute(2, 0, 1)  # Convert the NumPy array to a PyTorch tensor # Change the order of dimensions to [C, H, W]
     return image
+
+
+def visualizeinput(msgmd: MultiSampleGaussianMixData , writer):
+    num_samples = len(msgmd.X)
+    ncols = 2
+    nrows = num_samples//2 + num_samples%2
+    fig, axes = plt.subplots(nrows = nrows, ncols = ncols, squeeze=False)
+    print(axes.shape)
+    for i, (x,y) in enumerate(zip(msgmd.X, msgmd.y)):
+        j = i//2
+        k = i%2
+        plt.title('Sample '+str(i))
+        for c in np.unique(y):
+            xx= x[(y==c).flatten()]
+            ix = np.random.choice(xx.shape[0], 100, replace=True)
+            axes[j,k].scatter(xx[ix, 0], xx[ix, 1], label='C'+str(c), alpha=0.5)
+            cov = np.cov(xx.T)
+            mean = np.mean(xx, axis=0)
+            CIEllipse(mean, cov, axes[j,k], n_std=1.0, facecolor='none', edgecolor='k')
+
+    plt.legend()
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close()
+    image = Image.open(buf)  # Convert the buffer to a PIL Image
+    image = np.array(image)  # Convert the PIL Image to a NumPy array
+    image = torch.tensor(image).permute(2, 0, 1)  # Convert the NumPy array to a PyTorch tensor # Change the order of dimensions to [C, H, W]
+    writer.add_image("Input Samples",image)
