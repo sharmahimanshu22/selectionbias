@@ -37,8 +37,8 @@ def get_argparer():
     parser = argparse.ArgumentParser()
     parser.add_argument('--usefrozen', action='store_true', help='Use stored data')
     parser.add_argument("-dd", "--datadir",type=str, help="directory to load data from")
-    parser.add_argument("-sd", "--storedir", type=str, help="directory to save data in")
-    parser.add_argument("-ld", "--logdir", type=str, help="directory to log data in")
+    parser.add_argument("-sd", "--storedir", type=str, help="directory to save data in", required = True)
+    parser.add_argument("-ld", "--logdir", type=str, help="directory to log data in", required = True)
     return parser
 
 
@@ -75,13 +75,19 @@ def initialize_our_gaussian_mix_latent_space(context: Context, hp : HyperParamet
                                   Proportions=Proportions0, Sample_Sizes=hp.sample_sizes_training, 
                                   points_per_component=hp.batch_size, sigma=hp.gmls_sigma)
 
+
+    
 def main():
     args = get_argparer().parse_args()
-    context = get_input_context_one_sample_two_comps(args)
+    context = get_input_context_two_sample_two_comps(args)
     hp = get_hyperparameters(context)
     writer = SummaryWriter(args.logdir)
 
     msgmd = get_our_input_data(context)   # data
+
+
+    
+
     visualizeinput(msgmd, writer)
     
     gaussianMixLatentSpace = initialize_our_gaussian_mix_latent_space(context, hp) # gaussian mix latent space
@@ -92,7 +98,10 @@ def main():
 
     best_state, last_state = trainer(msgmd, model, gaussianMixLatentSpace, loss_func, optimizer, 
                                      test_size=hp.test_size, batch_size=hp.batch_size, epochs=hp.n_epochs, 
-                                     warmup_epochs= hp.warmup_epochs, writer=writer)
+                                     warmup_epochs= hp.warmup_epochs, writer=writer, dirname=args.storedir)
+    
+    #print(best_state, "best state")
+    #print(last_state, "last state")
     sys.exit(0)
 
 

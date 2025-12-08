@@ -35,28 +35,35 @@ def match_comps(true_resp_all_comps, resp_all_comps):
     return matching_comps
         
 
-def produce_posterior_report_for_sample(sample_idx, gaussianMixLatentSpace, model, msgmd : MultiSampleGaussianMixData, test_data, writer, epoch):
-
-    latent_embedding = model(torch.tensor(test_data[sample_idx], dtype=torch.float32))[0]
-    _,pred_resp_all_comps,_ = gaussianMixLatentSpace.compute_responsibilities(latent_embedding.detach()
-            , proportion = torch.tensor(gaussianMixLatentSpace.GMM.mProp[0]) , sample_index=sample_idx)
-    
-    true_resp_all_comps = msgmd.responsibility(sample_idx,test_data[sample_idx])
-
-    first_comp_pred = pred_resp_all_comps[0].detach().numpy()
-    second_comp_pred = pred_resp_all_comps[1].detach().numpy()
-    first_comp_true = true_resp_all_comps[:,0]
-    second_comp_true = true_resp_all_comps[:,1]
-
-
-    image = plot_all_posteriors([first_comp_true,second_comp_true], [first_comp_pred,second_comp_pred])
-    writer.add_image("Responsibility true vs predicted" ,image, epoch)
-
-
-
-
-
+def produce_posterior_report_for_all_samples(gaussianMixLatentSpace, model, msgmd, test_data, writer, epoch, dirname):
 
     
-    
+    for s in range(len(gaussianMixLatentSpace.Sample2Component)):
+        latent_embedding = model(torch.tensor(test_data[s], dtype=torch.float32))[0]
+        #print(test_data[s], "test_data")
+        #print(latent_embedding.detach(), "latent_embedding")
+        _,pred_resp_all_comps_gmls,_ = gaussianMixLatentSpace.compute_responsibilities(latent_embedding.detach()
+                                                                                       , sample_index=s)
+        pred_resp_all_comps_gmm = gaussianMixLatentSpace.GMM.responsibility(latent_embedding.detach(),
+                                                                                sample_index=s)
+        #
+        #print(pred_resp_all_comps_gmm, "comp post gmm")
+        
+        with open(os.path.join(dirname,"allpredposteriors_gmls_sample_" + str(s) + ".txt"), 'a') as f:
+            for ci in range(len(pred_resp_all_comps_gmls)):
+                component_posterior = pred_resp_all_comps_gmls[ci].detach().numpy()
+                f.write(",".join([str(e[0]) for e in component_posterior]))
+                f.write("\n")
+            f.write("\n")
+            f.close()
+        with open(os.path.join(dirname,"allpredposteriors_gmm_sample_" + str(s) + ".txt"), 'a') as f:
+            for ci in range(len(pred_resp_all_comps_gmm[0])):
+                component_posterior = pred_resp_all_comps_gmm[:,ci]
+                f.write(",".join([str(e) for e in component_posterior]))
+                f.write("\n")
+            f.write("\n")
+            f.close()
 
+        #fig = plot_all_posteriors(test_data, [first_comp_true,second_comp_true], [first_comp_pred,second_comp_pred])
+        #print("plot done")
+        #writer.add_figure("Responsibilitytruevspredicted/resps" ,fig, epoch)

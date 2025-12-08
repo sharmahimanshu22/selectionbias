@@ -128,23 +128,15 @@ class MultiSampleGaussianMixData:
 
         
         for i in range(len(self.Responsibilities)):
-            np.savetxt(os.path.join(dirname + "responsibilities_sample_" + str(i) + ".txt"),self.Responsibilities[i])
+            np.savetxt(os.path.join(dirname , "responsibilities_sample_" + str(i) + ".txt"),self.Responsibilities[i])
 
 
-
-
-
-        
-    def concatenate_x_y(self, X, y):
-        Xy = np.column_stack([X, y])
-        return Xy
             
 
     def __init__(self, X, y, Responsibilities, sample_to_Component_Idces, sample_to_component_Proportions, pos_Mu, neg_Mu, pos_Cov, neg_Cov, ):
 
         self.X = X
         self.y = y
-        print(X, y, "x and y")
         self.Responsibilities = Responsibilities     # only for components present in the sample
         self.sample_to_Component_Idces = sample_to_Component_Idces  # list of tuples. each element in list corresponds to sample. each tuple has two lists. First for positive components, second for negative components
         self.all_components_Mu = (pos_Mu, neg_Mu) # tuple of two lists. first element of tuple is list of positive Mu, second element of tuple is list of negative Mu
@@ -171,7 +163,6 @@ class MultiSampleGaussianMixData:
         sample_all_mu = sample_pos_mu + sample_neg_mu
         sample_all_cov = sample_pos_cov + sample_neg_cov
 
-
         sample_all_proportions = self.sample_to_component_Proportions[sample_idx]  # a tuple of two list
         sample_all_proportions = sample_all_proportions[0] + sample_all_proportions[1]
 
@@ -184,17 +175,16 @@ class MultiSampleGaussianMixData:
         for i in range(len(sample_all_mu)):
             comp = mvn(mean = sample_all_mu[i], cov = sample_all_cov[i])
             comps.append(comp)
-        
         dist = mixture(comps, sample_all_proportions)
         return dist
 
-    def responsibility(self, sample_idx, x):
+    def responsibility_wrt_sample_comps(self, sample_idx, x):
         dist = self.dist_sample(sample_idx)
         component_resp = dist.responsibility(x)
         return component_resp    # responsibilities corresponding to componenents present in the sample
- 
+    
 
-        
+
 
 
 
@@ -221,10 +211,9 @@ def GaussianMixtureDataGenerator2(num_samples, n_pos_comps, n_neg_comps , dim, s
 
     pos_Mu = [component.mean for component in p_comps]
     neg_Mu = [component.mean for component in n_comps]
+
     pos_Cov = [component.cov for component in p_comps]
     neg_Cov = [component.cov for component in n_comps]
-
-    
 
     for i in range(num_samples):
         s2pc = sample_to_pos_comp_idces[i]

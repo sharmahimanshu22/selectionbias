@@ -128,21 +128,26 @@ def VisualizeInputData(X, Y):
     plt.show()
     
     
+def uniform_sample_data(data):
+    xs = data[:,0]
+    ys = data[:,1]
 
 
-def plot_all_posteriors(responsibilities_true, responsibilities_pred):
-    fig, axes = plt.subplots(nrows=len(responsibilities_true), ncols=len(responsibilities_pred)) 
+def plot_all_posteriors(data, responsibilities_true, responsibilities_pred):
+    fig, axes = plt.subplots(nrows=len(responsibilities_true), ncols=len(responsibilities_pred), subplot_kw={"projection": "3d"})
     for i in range(len(responsibilities_true)):
         for j in range(len(responsibilities_pred)):
-            axes[i,j].scatter(responsibilities_true[i], responsibilities_pred[j])
-    
-    buf = io.BytesIO()   # Save the plot to a buffer
-    fig.savefig(buf, format='png')
-    buf.seek(0)
-    image = Image.open(buf)   # Convert the buffer to a PIL Image
-    image = np.array(image) # Convert the PIL Image to a NumPy array
-    image = torch.tensor(image).permute(2, 0, 1)  # Convert the NumPy array to a PyTorch tensor # Change the order of dimensions to [C, H, W]
-    return image
+            axes[i,j].scatter(data[:,0], data[:,1], responsibilities_true[i], c='g', alpha=0.1 ,s =1)
+            axes[i,j].scatter(data[:,0], data[:,1], responsibilities_pred[j], c='r', alpha=0.1, s =1)
+    return fig
+
+    #buf = io.BytesIO()   # Save the plot to a buffer
+    #fig.savefig(buf, format='png')
+    #buf.seek(0)
+    #image = Image.open(buf)   # Convert the buffer to a PIL Image
+    #image = np.array(image) # Convert the PIL Image to a NumPy array
+    #image = torch.tensor(image).permute(2, 0, 1)  # Convert the NumPy array to a PyTorch tensor # Change the order of dimensions to [C, H, W]
+    #return image
 
 
 def visualizeinput(msgmd: MultiSampleGaussianMixData , writer):

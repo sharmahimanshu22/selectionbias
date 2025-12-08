@@ -36,10 +36,11 @@ def get_input_context_two_sample_two_comps(args = None):
     sample_to_pos_comps_mix_prop = [[0.8], [0.2]]
     sample_to_neg_comp_idces = [[0], [0]]
     sample_to_neg_comps_mix_prop = [[0.2], [0.8]]
-    sample_sizes = [20000, 20000]
+    sample_sizes = [10000, 10000]
     return Context(n_samples, n_pos_comps,n_neg_comps, input_dim, sample_to_pos_comp_idces, 
                    sample_to_pos_comps_mix_prop, sample_to_neg_comp_idces, sample_to_neg_comps_mix_prop, 
                    sample_sizes, frozendata, loaddir, savedir)
+
 
 def get_input_context_one_sample_two_comps(args = None):  
     frozendata = False
@@ -78,19 +79,19 @@ class HyperParameters:
         self.n_epochs = n_epochs
         self.warmup_epochs = warmup_epochs
 
-        
 
 def get_hyperparameters(input_context):
     sample_sizes = input_context.sample_sizes
     test_size = 0.2
-    batch_size = 100
+    batch_size = 200
     gmls_sigma = 0.1
     encoded_dim_autoencoder = 2
     num_layers_autoencoder = 10
     width_autoencoder = 10
     learning_rate = 0.001
-    n_epochs = 100
+    n_epochs = 1000
     warmup_epochs = 20
-    return HyperParameters(sample_sizes,test_size, batch_size,  gmls_sigma, encoded_dim_autoencoder, num_layers_autoencoder, width_autoencoder, learning_rate,
+    return HyperParameters(sample_sizes,test_size, batch_size,  gmls_sigma, encoded_dim_autoencoder, 
+                           num_layers_autoencoder, width_autoencoder, learning_rate,
                            n_epochs, warmup_epochs)
 

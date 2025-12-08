@@ -3,6 +3,19 @@ import torch.nn as nn
 import numpy as np
 from torch.nn.utils import spectral_norm
 
+class SwiGLU(nn.Module):
+    def __init__(self, dimension):
+        super().__init__()
+        self.linear_1 = nn.Linear(dimension,dimension)
+        self.linear_2 = nn.Linear(dimension,dimension)
+
+    def forward(self, x):
+        output = self.linear_1(x)
+        swish = output * torch.sigmoid(output)
+        swiglu = swish * self.linear_2(x)
+
+        return swiglu
+    
 class FullyConnectedAutoencoder(nn.Module):
     def __init__(self, input_dim, encoded_dim, width =10, num_layers=10):
         super(FullyConnectedAutoencoder, self).__init__()
@@ -19,6 +32,7 @@ class FullyConnectedAutoencoder(nn.Module):
                 encoder_layers.append(spectral_norm(nn.Linear(layer_input_dim, layer_output_dim)))
                 if _ < num_layers - 1:
                     encoder_layers.append(nn.GELU())
+                    #encoder_layers.append(SwiGLU(layer_output_dim))
                 layer_input_dim = layer_output_dim
             self.encoder.append(nn.Sequential(*encoder_layers))
         

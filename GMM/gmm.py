@@ -39,6 +39,9 @@ class GMM:
         self.initParRan = False
         self.equalPropComps = equalPropComps
         self.identicalCov = identicalCov
+
+
+    
     def attachDebugger(self, debug):
         self.debug = debug
 
@@ -56,8 +59,8 @@ class GMM:
         # Iterate over the membership variable and update the component membership and indexes variables
         for i, mix in enumerate(cMemPerSample):
             for j, component in enumerate(mix):
-                self.sMemPerComp[component].append(i)
-                self.cIndPerComp[component].append(j)
+                self.sMemPerComp[component].append(i)    # component to sample indices
+                self.cIndPerComp[component].append(j)    # looks so useless and meaningless
 
     def separateData(self, X):
         Fits = [KMeans(n_clusters=len(gci_mix), init='k-means++').fit(x) for (x, gci_mix) in zip(X, self.cMemPerSample)]
@@ -198,29 +201,20 @@ class GMM:
         return responsibilities_adj
         
         
-    def responsibility(self, X):
-        R = [self.__responsibility__(x, i)[0] for i, x in enumerate(X)]
-        return R
+    def responsibility(self, X, sample_index=None):
+        if sample_index is None:
+            R = [self.__responsibility__(x, i)[0] for i, x in enumerate(X)]
+            return R
+        else:
+            return self.__responsibility__(X, sample_index)[0]
 
     def __responsibility__(self, x, sample_ix):
         logCPdf = np.hstack([self.compDist[j].logpdf(x)[:, None] for j in self.cMemPerSample[sample_ix]])
         logCPdf_w = logCPdf + np.log(self.mProp[sample_ix])
         logMPdf = logsumexp(logCPdf_w, axis=1, keepdims=True)
         R = np.exp(logCPdf_w - logMPdf)
-        #R = np.ones((x.shape[0], self.cMemPerSample[sample_ix].size))/self.cMemPerSample[sample_ix].size
-        #pdb.set_trace()
-        #logMPdf = np.ones((x.shape[0], 1))
         return R, logMPdf
 
-
-
-    # def __responsibility__(self, X):
-    #     #pdb.set_trace()
-    #     logCPdf = [np.hstack([cDist.logpdf(x)[:,None] for cDist in self.compDist]) for x in X]
-    #     logCPdf_w = [lPdf[:, cMemS] + np.log(mp) for (lPdf, cMemS, mp) in zip(logCPdf, self.cMemPerSample, self.mProp)]
-    #     logMPdf = [logsumexp(lPdf, axis=1, keepdims=True) for lPdf in logCPdf_w]
-    #     R = [np.exp(lCPdf - lMPdf) for(lCPdf, lMPdf) in zip(logCPdf_w, logMPdf)]
-    #     return R, logMPdf
 
     def logLikelihood(self, X, equallyWeightedSamples=False):
         logMPdf = [self.__responsibility__(x, i)[1] for i, x in enumerate(X)]
